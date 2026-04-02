@@ -1,0 +1,84 @@
+[workspace]
+members = [
+    ".",
+    "crates/mobydb-core",
+    "crates/mobydb-storage",
+    "crates/mobydb-merkle",
+    "crates/mobydb-query",
+    "crates/mobydb-server",
+]
+resolver = "2"
+
+# ── Workspace-wide package defaults ──────────────────────────────────────────
+[workspace.package]
+version    = "0.1.0"
+edition    = "2021"
+authors    = ["GNS Foundation <dev@mobydb.com>"]
+license    = "Apache-2.0"
+repository = "https://github.com/GNS-Foundation/mobydb"
+
+# ── Shared dependencies — all crates pull from here ──────────────────────────
+[workspace.dependencies]
+
+# Geospatial — pure Rust, no C FFI
+h3o = "0.7"
+
+# Cryptography — audited
+ed25519-dalek = { version = "2", features = ["rand_core", "serde"] }
+blake3        = "1"
+
+# Storage — LSM-tree, production-grade
+rocksdb = { version = "0.24", features = ["multi-threaded-cf"] }
+
+# Serialization
+serde      = { version = "1", features = ["derive"] }
+serde_json = "1"
+hex        = "0.4"
+
+# Async + HTTP
+tokio      = { version = "1", features = ["full"] }
+axum       = { version = "0.7", features = ["ws"] }
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+
+# CLI + errors + logging
+clap               = { version = "4", features = ["derive"] }
+thiserror          = "1"
+anyhow             = "1"
+tracing            = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Test utilities
+bincode  = "2"
+rand     = "0.8"
+chrono   = "0.4"
+tempfile = "3"
+
+# ── Root package — the mobydbd binary ────────────────────────────────────────
+[package]
+name    = "mobydbd"
+version.workspace = true
+edition.workspace = true
+description = "MobyDB — The Geospatial-Native Database"
+
+[[bin]]
+name = "mobydbd"
+path = "src/main.rs"
+
+[dependencies]
+mobydb-core    = { path = "crates/mobydb-core" }
+mobydb-storage = { path = "crates/mobydb-storage" }
+mobydb-merkle  = { path = "crates/mobydb-merkle" }
+mobydb-query   = { path = "crates/mobydb-query" }
+mobydb-server  = { path = "crates/mobydb-server" }
+tokio          = { workspace = true }
+axum           = { workspace = true }
+clap           = { workspace = true }
+serde_json     = { workspace = true }
+tracing        = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow         = { workspace = true }
+reqwest        = { version = "0.12", features = ["json"] }
+h3o           = { workspace = true }
+ed25519-dalek = { workspace = true }
+hex           = { workspace = true }
+rand          = { workspace = true }

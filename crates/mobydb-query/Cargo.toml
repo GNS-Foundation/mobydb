@@ -1,0 +1,14 @@
+[package]
+name    = "mobydb-query"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+mobydb-core    = { path = "../mobydb-core" }
+mobydb-storage = { path = "../mobydb-storage" }
+mobydb-merkle  = { path = "../mobydb-merkle" }
+h3o            = { workspace = true }
+serde          = { workspace = true }
+serde_json     = { workspace = true }
+thiserror      = { workspace = true }
+tracing        = { workspace = true }
