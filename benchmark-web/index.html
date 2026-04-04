@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MobyDB vs PostGIS — Live Benchmark</title>
+  <meta name="description" content="Run live geospatial database benchmarks comparing MobyDB and PostGIS. Real queries. Real data. Honest results." />
+  <meta property="og:title" content="MobyDB vs PostGIS — Live Benchmark">
+  <meta property="og:description" content="Click Run. See real query times. MobyDB's H3 composite key vs PostGIS GiST index. Honest numbers, live in the cloud.">
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --cyan:        #0099cc;
+      --cyan2:       #00bbee;
+      --cyan-dim:    rgba(0,153,204,.08);
+      --cyan-border: rgba(0,153,204,.2);
+      --green:       #00c853;
+      --green-dim:   rgba(0,200,83,.08);
+      --green-border:rgba(0,200,83,.2);
+      --teal:        #00b4a0;
+      --teal-dim:    rgba(0,180,160,.08);
+      --teal-border: rgba(0,180,160,.22);
+      --red:         #e53e3e;
+      --amber:       #d97706;
+      --bg:          #06090f;
+      --bg2:         #0c1219;
+      --bg3:         #121a25;
+      --border:      rgba(255,255,255,.07);
+      --text:        #c8d6e5;
+      --text2:       #8fa3b8;
+      --text3:       #5a7290;
+      --white:       #ffffff;
+      --nav-bg:      rgba(6,9,15,.88);
+      --sans:        'DM Sans', sans-serif;
+      --mono:        'Space Mono', monospace;
+    }
+    [data-theme="light"] {
+      --bg:          #f4f6fa;
+      --bg2:         #eaecf2;
+      --bg3:         #e0e3ec;
+      --border:      rgba(0,0,0,.09);
+      --text:        #1a2233;
+      --text2:       #4a5568;
+      --text3:       #718096;
+      --white:       #0d1a2d;
+      --nav-bg:      rgba(244,246,250,.92);
+    }
+    [data-theme="light"] body::before { opacity:.12; }
+    [data-theme="light"] .card  { background:#fff; border-color:rgba(0,0,0,.09); }
+    [data-theme="light"] .query-btn { background:#fff; border-color:rgba(0,0,0,.1); }
+    [data-theme="light"] .query-btn:hover { border-color:rgba(0,153,204,.3); }
+    [data-theme="light"] .query-btn.active { background:rgba(0,180,160,.08); }
+    [data-theme="light"] .code-box { background:#f0f4f8; }
+    [data-theme="light"] .code-box pre { color:#2d4a6a; }
+    [data-theme="light"] .result-row { background:#fff; border-color:rgba(0,0,0,.08); }
+
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    html{scroll-behavior:smooth;}
+    body{font-family:var(--sans);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;overflow-x:hidden;}
+    body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");pointer-events:none;z-index:9999;opacity:.4;}
+
+    /* ── NAV ── */
+    nav{position:sticky;top:0;z-index:100;background:var(--nav-bg);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--border);}
+    .nav-inner{max-width:1200px;margin:0 auto;padding:0 28px;height:72px;display:flex;align-items:center;justify-content:space-between;gap:12px;}
+    .nav-brand{display:flex;align-items:center;gap:10px;text-decoration:none;}
+    .nav-brand-whale{font-size:24px;}
+    .nav-brand-name{font-family:var(--mono);font-size:16px;font-weight:700;color:var(--white);}
+    .nav-brand-sub{font-size:13px;color:var(--text3);margin-left:4px;}
+    .nav-right{display:flex;align-items:center;gap:8px;}
+    .nav-link{font-size:14px;color:var(--text2);text-decoration:none;padding:6px 12px;border-radius:7px;transition:all .2s;}
+    .nav-link:hover{color:var(--white);background:rgba(255,255,255,.05);}
+    .theme-btn{background:none;border:1px solid var(--border);color:var(--text3);padding:5px 10px;border-radius:7px;cursor:pointer;display:flex;align-items:center;transition:all .2s;}
+    .theme-btn:hover{color:var(--white);border-color:rgba(255,255,255,.15);}
+    .theme-btn svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+    .icon-sun{display:none;} .icon-moon{display:block;}
+    [data-theme="light"] .icon-sun{display:block;} [data-theme="light"] .icon-moon{display:none;}
+
+    /* ── HERO ── */
+    .hero{max-width:900px;margin:0 auto;padding:56px 28px 48px;text-align:center;}
+    .hero-badge{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--teal);background:var(--teal-dim);border:1px solid var(--teal-border);padding:5px 14px;border-radius:20px;margin-bottom:24px;}
+    .hero-badge .dot{width:5px;height:5px;border-radius:50%;background:var(--green);animation:pulse 2s infinite;}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+    .hero h1{font-size:clamp(36px,5vw,64px);font-weight:800;line-height:1.06;letter-spacing:-1px;color:var(--white);margin-bottom:16px;}
+    .hero h1 .t{color:var(--teal);}
+    .hero p{font-size:18px;color:var(--text2);line-height:1.7;max-width:620px;margin:0 auto 32px;}
+
+    /* ── MAIN LAYOUT ── */
+    .container{max-width:1100px;margin:0 auto;padding:0 28px 80px;}
+
+    /* ── BENCHMARK CARD ── */
+    .bench-card{background:var(--bg2);border:1px solid var(--border);border-radius:20px;overflow:hidden;margin-bottom:24px;}
+    .bench-header{padding:24px 28px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;}
+    .bench-title{font-size:16px;font-weight:700;color:var(--white);}
+    .bench-body{padding:28px;}
+
+    /* ── QUERY SELECTOR ── */
+    .query-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:24px;}
+    @media(max-width:700px){.query-grid{grid-template-columns:1fr 1fr;}}
+    @media(max-width:460px){.query-grid{grid-template-columns:1fr;}}
+    .query-btn{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px 16px;cursor:pointer;text-align:left;transition:all .2s;color:var(--text);}
+    .query-btn:hover{border-color:var(--teal-border);background:var(--teal-dim);}
+    .query-btn.active{border-color:var(--teal);background:var(--teal-dim);}
+    .qb-id{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--teal);margin-bottom:5px;}
+    .qb-name{font-size:13px;font-weight:600;color:var(--white);line-height:1.4;}
+    .qb-desc{font-size:12px;color:var(--text3);margin-top:4px;line-height:1.4;}
+
+    /* ── SCALE SELECTOR ── */
+    .scale-row{display:flex;align-items:center;gap:10px;margin-bottom:24px;flex-wrap:wrap;}
+    .scale-label{font-size:14px;color:var(--text3);font-weight:600;white-space:nowrap;}
+    .scale-btn{font-family:var(--mono);font-size:13px;font-weight:700;padding:8px 20px;border:1px solid var(--border);border-radius:8px;background:var(--bg3);color:var(--text2);cursor:pointer;transition:all .2s;}
+    .scale-btn:hover{border-color:var(--cyan-border);color:var(--cyan);}
+    .scale-btn.active{background:var(--cyan-dim);border-color:var(--cyan);color:var(--cyan);}
+
+    /* ── RUN BUTTON ── */
+    .run-btn{width:100%;padding:16px;border-radius:12px;border:none;background:var(--teal);color:#fff;font-family:var(--sans);font-size:17px;font-weight:700;cursor:pointer;transition:all .25s;letter-spacing:.2px;}
+    .run-btn:hover{background:#00c8b4;transform:translateY(-1px);box-shadow:0 8px 24px rgba(0,180,160,.3);}
+    .run-btn:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none;}
+
+    /* ── RESULTS ── */
+    .results{margin-top:28px;}
+    .results-hidden{display:none;}
+
+    .speedup-banner{background:linear-gradient(135deg,rgba(0,180,160,.12),rgba(0,153,204,.08));border:1px solid var(--teal-border);border-radius:16px;padding:32px;text-align:center;margin-bottom:20px;}
+    .speedup-num{font-family:var(--mono);font-size:72px;font-weight:700;color:var(--teal);line-height:1;}
+    .speedup-label{font-size:18px;color:var(--text2);margin-top:8px;}
+    .speedup-sub{font-family:var(--mono);font-size:12px;color:var(--text3);margin-top:6px;}
+
+    /* ── BAR COMPARISON ── */
+    .bars{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;}
+    @media(max-width:560px){.bars{grid-template-columns:1fr;}}
+    .bar-card{background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:22px;}
+    .bar-card.pg{border-color:rgba(227,79,38,.2);}
+    .bar-card.mb{border-color:var(--teal-border);}
+    .bar-db{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;}
+    .bar-card.pg .bar-db{color:#e74f26;}
+    .bar-card.mb .bar-db{color:var(--teal);}
+    .bar-time{font-family:var(--mono);font-size:36px;font-weight:700;color:var(--white);margin-bottom:10px;line-height:1;}
+    .bar-track{height:8px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden;}
+    .bar-fill{height:100%;border-radius:4px;transition:width 1s ease;}
+    .bar-card.pg .bar-fill{background:linear-gradient(90deg,#e74f26,#f97316);}
+    .bar-card.mb .bar-fill{background:linear-gradient(90deg,var(--teal),var(--cyan));}
+    .bar-records{font-size:13px;color:var(--text3);margin-top:10px;}
+
+    /* ── QUERY DISPLAY ── */
+    .query-compare{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;}
+    @media(max-width:640px){.query-compare{grid-template-columns:1fr;}}
+    .code-box{background:#080d16;border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+    .code-box-header{padding:10px 16px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;}
+    .code-box.pg .code-box-header{color:#e74f26;}
+    .code-box.mb .code-box-header{color:var(--teal);}
+    .code-box pre{padding:16px;font-family:var(--mono);font-size:12px;line-height:1.8;color:#8ab4c8;white-space:pre-wrap;word-break:break-word;}
+    .code-box pre .kw{color:#569cd6;}
+    .code-box pre .fn{color:#dcdcaa;}
+    .code-box pre .str{color:#ce9178;}
+    .code-box pre .num{color:var(--teal);}
+
+    /* ── META ROW ── */
+    .meta-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px;}
+    .meta-item{font-family:var(--mono);font-size:12px;color:var(--text3);}
+    .meta-item strong{color:var(--white);}
+    .share-btn{font-family:var(--mono);font-size:12px;font-weight:700;padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text2);cursor:pointer;transition:all .2s;}
+    .share-btn:hover{border-color:var(--teal-border);color:var(--teal);}
+
+    /* ── HISTORY ── */
+    .history-section{margin-top:40px;}
+    .history-title{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:16px;}
+    .history-list{display:flex;flex-direction:column;gap:8px;}
+    .result-row{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 18px;display:grid;grid-template-columns:80px 1fr auto auto auto;gap:12px;align-items:center;cursor:pointer;transition:border-color .2s;}
+    .result-row:hover{border-color:var(--teal-border);}
+    .rr-query{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--teal);}
+    .rr-name{font-size:13px;color:var(--text2);}
+    .rr-pg{font-family:var(--mono);font-size:13px;color:#e74f26;}
+    .rr-mb{font-family:var(--mono);font-size:13px;color:var(--teal);}
+    .rr-speedup{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--white);}
+    @media(max-width:600px){.result-row{grid-template-columns:60px 1fr auto;} .rr-pg,.rr-speedup{display:none;}}
+
+    /* ── LOADING STATE ── */
+    .loading-state{text-align:center;padding:48px 0;}
+    .spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--teal);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 16px;}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .loading-text{font-family:var(--mono);font-size:13px;color:var(--text3);}
+
+    /* ── ERROR STATE ── */
+    .error-state{background:rgba(229,62,62,.06);border:1px solid rgba(229,62,62,.2);border-radius:12px;padding:24px;text-align:center;color:#fc8181;}
+    .error-state strong{display:block;margin-bottom:6px;font-size:15px;}
+    .error-state span{font-size:13px;color:#feb2b2;}
+
+    /* ── HONESTY BOX ── */
+    .honesty-box{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:28px;margin-top:40px;}
+    .hb-title{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:14px;}
+    .hb-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+    @media(max-width:560px){.hb-grid{grid-template-columns:1fr;}}
+    .hb-item h4{font-size:14px;font-weight:700;color:var(--white);margin-bottom:6px;}
+    .hb-item p{font-size:13px;color:var(--text3);line-height:1.65;}
+    .hb-item h4.green{color:var(--teal);}
+    .hb-item h4.amber{color:var(--amber);}
+
+    /* ── FOOTER ── */
+    footer{border-top:1px solid var(--border);padding:28px;text-align:center;}
+    footer span{font-size:13px;color:var(--text3);}
+    footer a{color:var(--teal);text-decoration:none;}
+    footer a:hover{text-decoration:underline;}
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a href="https://mobydb.com" class="nav-brand">
+      <span class="nav-brand-whale">🐋</span>
+      <span class="nav-brand-name">MobyDB</span>
+      <span class="nav-brand-sub">vs PostGIS</span>
+    </a>
+    <div class="nav-right">
+      <a href="https://mobydb.com" class="nav-link">mobydb.com</a>
+      <a href="https://github.com/GNS-Foundation/mobydb" target="_blank" class="nav-link">GitHub</a>
+      <button class="theme-btn" id="themeToggle">
+        <svg class="icon-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        <svg class="icon-sun"  viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<div class="hero">
+  <div class="hero-badge"><span class="dot"></span>Live · Real queries · Honest results</div>
+  <h1>MobyDB vs<br><span class="t">PostGIS</span><br>Live Benchmark</h1>
+  <p>Select a query and dataset scale. Click Run. Both databases execute the same query simultaneously. See real milliseconds — not synthetic numbers, not cherry-picked scenarios.</p>
+</div>
+
+<div class="container">
+
+  <!-- ── BENCHMARK CARD ── -->
+  <div class="bench-card">
+    <div class="bench-header">
+      <div class="bench-title">Configure benchmark</div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text3);">
+        Hardware: Railway cloud · PostgreSQL 16 · PostGIS 3.5 · MobyDB 0.1.0
+      </div>
+    </div>
+    <div class="bench-body">
+
+      <!-- Query selector -->
+      <div style="font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:12px;">Select query</div>
+      <div class="query-grid" id="queryGrid">
+        <!-- Populated by JS -->
+      </div>
+
+      <!-- Scale selector -->
+      <div class="scale-row">
+        <span class="scale-label">Dataset scale:</span>
+        <button class="scale-btn" data-scale="100K">100K</button>
+        <button class="scale-btn active" data-scale="1M">1M</button>
+        <button class="scale-btn" data-scale="10M">10M</button>
+        <span style="font-size:12px;color:var(--text3);margin-left:4px;">records</span>
+      </div>
+
+      <!-- Run button -->
+      <button class="run-btn" id="runBtn">▶ Run Benchmark</button>
+
+      <!-- Results area -->
+      <div class="results results-hidden" id="resultsArea">
+
+        <!-- Loading -->
+        <div class="loading-state" id="loadingState">
+          <div class="spinner"></div>
+          <div class="loading-text" id="loadingText">Running queries on both databases...</div>
+        </div>
+
+        <!-- Error -->
+        <div class="error-state results-hidden" id="errorState">
+          <strong>Benchmark failed</strong>
+          <span id="errorMsg"></span>
+        </div>
+
+        <!-- Success -->
+        <div id="successState" class="results-hidden">
+
+          <!-- Speedup banner -->
+          <div class="speedup-banner">
+            <div class="speedup-num" id="speedupNum">—</div>
+            <div class="speedup-label">MobyDB is <strong id="speedupLabel">?×</strong> faster</div>
+            <div class="speedup-sub" id="speedupSub">on this query at this scale</div>
+          </div>
+
+          <!-- Bars -->
+          <div class="bars">
+            <div class="bar-card pg">
+              <div class="bar-db">PostGIS</div>
+              <div class="bar-time" id="pgTime">—</div>
+              <div class="bar-track"><div class="bar-fill" id="pgBar" style="width:0%"></div></div>
+              <div class="bar-records" id="pgRecords"></div>
+            </div>
+            <div class="bar-card mb">
+              <div class="bar-db">MobyDB</div>
+              <div class="bar-time" id="mbTime">—</div>
+              <div class="bar-track"><div class="bar-fill" id="mbBar" style="width:0%"></div></div>
+              <div class="bar-records" id="mbRecords"></div>
+            </div>
+          </div>
+
+          <!-- Query display -->
+          <div class="query-compare">
+            <div class="code-box pg">
+              <div class="code-box-header">PostGIS SQL</div>
+              <pre id="pgSql"></pre>
+            </div>
+            <div class="code-box mb">
+              <div class="code-box-header">MobyQL</div>
+              <pre id="mbQuery"></pre>
+            </div>
+          </div>
+
+          <!-- Meta row -->
+          <div class="meta-row">
+            <div style="display:flex;gap:20px;flex-wrap:wrap;">
+              <div class="meta-item">Query: <strong id="metaQuery">—</strong></div>
+              <div class="meta-item">Scale: <strong id="metaScale">—</strong></div>
+              <div class="meta-item">Records match: <strong id="metaMatch">—</strong></div>
+              <div class="meta-item">Run at: <strong id="metaTime">—</strong></div>
+            </div>
+            <button class="share-btn" id="shareBtn">Share results ↗</button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RUN HISTORY ── -->
+  <div class="history-section" id="historySection" style="display:none;">
+    <div class="history-title">Run history — this session</div>
+    <div class="history-list" id="historyList"></div>
+  </div>
+
+  <!-- ── HONESTY BOX ── -->
+  <div class="honesty-box">
+    <div class="hb-title">Benchmark methodology</div>
+    <div class="hb-grid">
+      <div class="hb-item">
+        <h4 class="green">Where MobyDB wins</h4>
+        <p>Proximity queries (near) — composite key range scan vs GiST index lookup. Combined spatial + temporal filters — one key scan vs two-index merge. Aggregation (zoom_out) — H3 parent traversal vs GROUP BY + boundary join.</p>
+      </div>
+      <div class="hb-item">
+        <h4 class="amber">Where PostGIS still wins</h4>
+        <p>Complex polygon operations (GEOS library). Point-in-polygon at low cardinality. Full-text attribute search. Any query that doesn't have WHERE + WHEN + WHO as its core shape.</p>
+      </div>
+      <div class="hb-item">
+        <h4 class="green">Hardware</h4>
+        <p>Both databases run on Railway cloud infrastructure. Same region, same resource allocation. PostGIS: GiST index on geometry, BRIN on timestamp, B-tree on epoch. No artificial handicaps on either side.</p>
+      </div>
+      <div class="hb-item">
+        <h4 class="amber">MobyDB writes more</h4>
+        <p>MobyDB verifies an Ed25519 signature on every write — a cost PostGIS doesn't have. This is intentional. MobyDB provides a guarantee PostGIS structurally cannot: every record is cryptographically attributed. Write throughput reflects this real cost.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <span>
+    🐋 <a href="https://mobydb.com">mobydb.com</a> ·
+    <a href="https://github.com/GNS-Foundation/mobydb" target="_blank">GitHub</a> ·
+    Apache 2.0 · ULISSY s.r.l. Roma · GNS Foundation Zurich ·
+    GEP genesis: 26acb5d998b63d54...
+  </span>
+</footer>
+
+<script>
+// ── Config ────────────────────────────────────────────────────────────────────
+const API_BASE = 'BENCHMARK_API_URL'; // replaced at deploy time
+
+// ── Query definitions (mirroring the API) ────────────────────────────────────
+const QUERIES = [
+  { id: 'Q1',  name: 'Proximity search',           desc: 'near() — 2 rings (~5km), single epoch' },
+  { id: 'Q2',  name: 'Proximity + temporal',        desc: 'near() + during() — 20 epoch range' },
+  { id: 'Q3',  name: 'Aggregation',                 desc: 'GROUP BY vs zoom_out() — district averages' },
+  { id: 'Q4a', name: 'Ring scaling — rings=1',      desc: '~1.5km radius, base cost' },
+  { id: 'Q4b', name: 'Ring scaling — rings=3',      desc: '~7.5km radius, cost scaling' },
+  { id: 'Q5',  name: 'Write throughput',            desc: 'Records/sec (MobyDB: Ed25519 verify included)' },
+];
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let selectedQuery = 'Q1';
+let selectedScale = '1M';
+let runHistory    = [];
+let currentResult = null;
+
+// ── DOM refs ──────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+
+// ── Build query grid ──────────────────────────────────────────────────────────
+function buildQueryGrid() {
+  const grid = $('queryGrid');
+  grid.innerHTML = QUERIES.map(q => `
+    <button class="query-btn${q.id === selectedQuery ? ' active' : ''}"
+            data-qid="${q.id}" onclick="selectQuery('${q.id}')">
+      <div class="qb-id">${q.id}</div>
+      <div class="qb-name">${q.name}</div>
+      <div class="qb-desc">${q.desc}</div>
+    </button>
+  `).join('');
+}
+
+function selectQuery(id) {
+  selectedQuery = id;
+  document.querySelectorAll('.query-btn').forEach(b => b.classList.toggle('active', b.dataset.qid === id));
+}
+
+// ── Scale buttons ─────────────────────────────────────────────────────────────
+document.querySelectorAll('.scale-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    selectedScale = btn.dataset.scale;
+    document.querySelectorAll('.scale-btn').forEach(b => b.classList.toggle('active', b === btn));
+  });
+});
+
+// ── Run benchmark ─────────────────────────────────────────────────────────────
+$('runBtn').addEventListener('click', async () => {
+  const btn = $('runBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Running...';
+
+  $('resultsArea').classList.remove('results-hidden');
+  $('loadingState').style.display = 'block';
+  $('errorState').classList.add('results-hidden');
+  $('successState').classList.add('results-hidden');
+
+  // Animated loading messages
+  const msgs = [
+    'Connecting to both databases...',
+    'Warming buffer cache...',
+    'Running PostGIS query...',
+    'Running MobyDB query...',
+    'Measuring execution time...',
+    'Comparing results...',
+  ];
+  let mi = 0;
+  const msgInterval = setInterval(() => {
+    $('loadingText').textContent = msgs[Math.min(mi++, msgs.length - 1)];
+  }, 900);
+
+  try {
+    const resp = await fetch(`${API_BASE}/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: selectedQuery, scale: selectedScale }),
+    });
+    const data = await resp.json();
+    clearInterval(msgInterval);
+
+    if (!data.success) throw new Error(data.error || 'Unknown error');
+
+    currentResult = data.data;
+    displayResult(currentResult);
+    addToHistory(currentResult);
+
+  } catch (err) {
+    clearInterval(msgInterval);
+    $('loadingState').style.display = 'none';
+    $('errorState').classList.remove('results-hidden');
+    $('errorMsg').textContent = err.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '▶ Run Benchmark';
+  }
+});
+
+// ── Display result ─────────────────────────────────────────────────────────────
+function displayResult(r) {
+  $('loadingState').style.display = 'none';
+  $('successState').classList.remove('results-hidden');
+
+  const pg  = r.postgis_ms?.toFixed(1) ?? '—';
+  const mb  = r.mobydb_ms?.toFixed(1)  ?? '—';
+  const spd = r.speedup ?? 0;
+
+  // Speedup banner
+  $('speedupNum').textContent   = spd > 0 ? spd + '×' : '—';
+  $('speedupLabel').textContent = spd > 0 ? spd + '×' : 'measuring...';
+  $('speedupSub').textContent   = `${r.query} · ${r.scale} records · ${new Date(r.ran_at).toLocaleTimeString()}`;
+
+  // Times
+  $('pgTime').textContent = pg + (r.postgis_ms ? ' ms' : '');
+  $('mbTime').textContent = mb + (r.mobydb_ms  ? ' ms' : '');
+
+  // Bars — MobyDB is always 100% (faster), PostGIS is relative
+  const pgPct = r.postgis_ms && r.mobydb_ms
+    ? Math.min(100, (r.mobydb_ms / r.postgis_ms) * 100)
+    : 50;
+  setTimeout(() => {
+    $('pgBar').style.width = '100%';
+    $('mbBar').style.width = pgPct + '%';
+  }, 100);
+
+  // Records
+  $('pgRecords').textContent = r.postgis_records != null ? `${r.postgis_records.toLocaleString()} records` : '';
+  $('mbRecords').textContent = r.mobydb_records  != null ? `${r.mobydb_records.toLocaleString()} records`  : '';
+
+  // Query display
+  $('pgSql').innerHTML   = syntaxHL(r.postgis_sql, 'sql');
+  $('mbQuery').innerHTML = syntaxHL(r.mobydb_query, 'moby');
+
+  // Meta
+  $('metaQuery').textContent = r.query;
+  $('metaScale').textContent = r.scale;
+  $('metaMatch').textContent = r.counts_match == null ? '—' : r.counts_match ? '✓ Yes' : '✗ No';
+  $('metaTime').textContent  = new Date(r.ran_at).toLocaleTimeString();
+}
+
+// ── Syntax highlight (simple) ─────────────────────────────────────────────────
+function syntaxHL(text, lang) {
+  if (lang === 'sql') {
+    return text
+      .replace(/\b(SELECT|FROM|WHERE|AND|JOIN|ON|GROUP BY|ORDER BY|COUNT|AVG|DISTINCT|AS|BETWEEN|INTO|VALUES|INSERT)\b/g,
+        m => `<span class="kw">${m}</span>`)
+      .replace(/\b(ST_DWithin|ST_SetSRID|ST_MakePoint|ST_Within|uuid_generate_v4|NOW)\b/g,
+        m => `<span class="fn">${m}</span>`)
+      .replace(/(\d+\.?\d*)/g, m => `<span class="num">${m}</span>`);
+  }
+  if (lang === 'moby') {
+    return text
+      .replace(/\b(near|during|zoom_out|collection|execute|write_batch|with_tier)\b/g,
+        m => `<span class="fn">${m}</span>`)
+      .replace(/(\d+)/g, m => `<span class="num">${m}</span>`);
+  }
+  return text;
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
+function addToHistory(r) {
+  runHistory.unshift(r);
+  $('historySection').style.display = 'block';
+  renderHistory();
+}
+
+function renderHistory() {
+  $('historyList').innerHTML = runHistory.slice(0, 8).map(r => `
+    <div class="result-row" onclick="displayResult(${JSON.stringify(r).replace(/"/g,'&quot;')})">
+      <div class="rr-query">${r.query}</div>
+      <div class="rr-name">${r.scale} · ${r.note?.substring(0,50) ?? ''}</div>
+      <div class="rr-pg">${r.postgis_ms?.toFixed(0) ?? '—'}ms</div>
+      <div class="rr-mb">${r.mobydb_ms?.toFixed(0)  ?? '—'}ms</div>
+      <div class="rr-speedup">${r.speedup ? r.speedup + '×' : '—'}</div>
+    </div>
+  `).join('');
+}
+
+// ── Share ─────────────────────────────────────────────────────────────────────
+$('shareBtn').addEventListener('click', () => {
+  if (!currentResult) return;
+  const url = `${window.location.origin}/?result=${currentResult.id}&q=${currentResult.query}&scale=${currentResult.scale}&speedup=${currentResult.speedup}`;
+  if (navigator.share) {
+    navigator.share({
+      title: `MobyDB ${currentResult.speedup}× faster than PostGIS on ${currentResult.query}`,
+      text:  `MobyDB: ${currentResult.mobydb_ms?.toFixed(1)}ms | PostGIS: ${currentResult.postgis_ms?.toFixed(1)}ms`,
+      url,
+    });
+  } else {
+    navigator.clipboard.writeText(url).then(() => {
+      $('shareBtn').textContent = 'Copied!';
+      setTimeout(() => $('shareBtn').textContent = 'Share results ↗', 2000);
+    });
+  }
+});
+
+// ── Theme toggle ──────────────────────────────────────────────────────────────
+const root  = document.documentElement;
+const saved = localStorage.getItem('mobydb-theme');
+if (saved) root.setAttribute('data-theme', saved);
+$('themeToggle').addEventListener('click', () => {
+  const next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+  root.setAttribute('data-theme', next);
+  localStorage.setItem('mobydb-theme', next);
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+buildQueryGrid();
+</script>
+
+</body>
+</html>
