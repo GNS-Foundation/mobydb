@@ -10,7 +10,6 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use mobydb_server::{router, ServerState};
 use mobydb_storage::MobyStore;
-use std::net::SocketAddr;
 use std::sync::Arc;
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -57,18 +56,22 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Serve { data, port, log } => {
+        Commands::Serve { data, log, .. } => {
             init_tracing(&log);
+            let port: u16 = std::env::var("PORT")
+                .unwrap_or_else(|_| "7474".to_string())
+                .parse()
+                .expect("PORT must be a valid u16");
             info!("🐋  MobyDB starting...");
             info!("   Data:    {}", data);
-            info!("   Port:    {}", port);
+            info!("   Port:    {} (from $PORT)", port);
             info!("   GEP genesis: {}", mobydb_core::GEP_GENESIS_HASH);
             let store = MobyStore::open(&data)?;
             let state = Arc::new(ServerState { store });
             let app   = router(state);
-            let addr  = SocketAddr::from(([0, 0, 0, 0], port));
+            let addr  = format!("0.0.0.0:{}", port);
             info!("🐋  MobyDB listening on {}", addr);
-            let listener = tokio::net::TcpListener::bind(addr).await?;
+            let listener = tokio::net::TcpListener::bind(&addr).await?;
             axum::serve(listener, app).await?;
         }
 
