@@ -106,7 +106,7 @@ async fn main() -> Result<()> {
 
 async fn run_demo(server: &str) -> Result<()> {
     use ed25519_dalek::{Signer, SigningKey};
-    use h3o::{CellIndex, LatLng, Resolution};
+    use h3o::{LatLng, Resolution};
     use mobydb_core::{CollectionType, MobyPayload, MobyRecord, SpacetimeAddress, TrustTier};
     use rand::rngs::OsRng;
 
