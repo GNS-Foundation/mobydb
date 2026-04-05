@@ -31,7 +31,7 @@ enum Commands {
     Serve {
         #[arg(short, long, default_value = "./mobydata")]
         data: String,
-        #[arg(short, long, default_value = "7474")]
+        #[arg(short, long, env = "PORT", default_value = "7474")]
         port: u16,
         #[arg(short, long, default_value = "info")]
         log: String,
