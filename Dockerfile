@@ -65,7 +65,7 @@ COPY --from=builder /app/target/release/mobydbd /usr/local/bin/mobydbd
 RUN mkdir -p /data/mobydb
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=15s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:${PORT:-7474}/health || exit 1
 
 EXPOSE 7474
