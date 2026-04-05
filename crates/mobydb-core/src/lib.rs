@@ -86,6 +86,8 @@ pub enum CollectionType {
     Relationship,
     /// Pre-computed rollup at lower resolution
     Aggregate,
+    /// Georeferenced imagery tile: satellite, aerial, drone capture
+    Imagery,
 }
 
 // ── Spacetime Address ─────────────────────────────────────────────────────────
@@ -219,6 +221,105 @@ pub struct MobyPayload {
     pub payload_type: String,
     /// The actual data — schema-flexible
     pub data: serde_json::Value,
+}
+
+// ── Imagery Reference ─────────────────────────────────────────────────────────
+
+/// Reference to an image tile stored externally.
+///
+/// MobyDB does not store raw pixel data — it stores signed metadata
+/// and a content hash. The hash is covered by the Ed25519 signature,
+/// creating a tamper-evident chain from capture to query.
+///
+/// Storage backends: Cloudflare R2, S3, local filesystem, IPFS.
+///
+/// ```ignore
+/// let imagery = ImageryRef::new(
+///     "sentinel2/B04",
+///     tile_bytes,                     // raw bytes — hashed, not stored
+///     "r2://mobydb-imagery/scene123/tile_871e9a0ec.webp",
+/// )
+/// .with_band("B04")
+/// .with_resolution_m(10.0)
+/// .with_cloud_cover(12.4);
+///
+/// let payload = imagery.to_payload();
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImageryRef {
+    /// Blake3 hash of the raw image bytes (hex-encoded)
+    pub content_hash: String,
+    /// URL or path to the actual image bytes
+    pub content_url: String,
+    /// Size of the image in bytes
+    pub content_size: u64,
+    /// Image format: "webp", "png", "tiff", "cog"
+    pub format: String,
+    /// Spectral band: "RGB", "B04", "NDVI", "thermal"
+    pub band: Option<String>,
+    /// Ground sample distance in metres
+    pub resolution_m: Option<f64>,
+    /// Cloud cover percentage (0.0–100.0)
+    pub cloud_cover_pct: Option<f64>,
+    /// Source sensor/platform: "sentinel2", "landsat9", "drone-dji-m30t"
+    pub source: Option<String>,
+    /// H3 resolution used for tiling
+    pub tile_resolution: Option<u8>,
+}
+
+impl ImageryRef {
+    /// Create a new imagery reference from raw bytes.
+    /// Computes the Blake3 hash but does NOT store the bytes.
+    pub fn new(format: &str, raw_bytes: &[u8], content_url: &str) -> Self {
+        let hash = blake3::hash(raw_bytes);
+        Self {
+            content_hash: hash.to_hex().to_string(),
+            content_url: content_url.to_string(),
+            content_size: raw_bytes.len() as u64,
+            format: format.to_string(),
+            band: None,
+            resolution_m: None,
+            cloud_cover_pct: None,
+            source: None,
+            tile_resolution: None,
+        }
+    }
+
+    /// Create from a pre-computed hash (when bytes aren't available locally)
+    pub fn from_hash(format: &str, content_hash: &str, content_url: &str, content_size: u64) -> Self {
+        Self {
+            content_hash: content_hash.to_string(),
+            content_url: content_url.to_string(),
+            content_size,
+            format: format.to_string(),
+            band: None,
+            resolution_m: None,
+            cloud_cover_pct: None,
+            source: None,
+            tile_resolution: None,
+        }
+    }
+
+    pub fn with_band(mut self, band: &str) -> Self { self.band = Some(band.into()); self }
+    pub fn with_resolution_m(mut self, res: f64) -> Self { self.resolution_m = Some(res); self }
+    pub fn with_cloud_cover(mut self, pct: f64) -> Self { self.cloud_cover_pct = Some(pct); self }
+    pub fn with_source(mut self, src: &str) -> Self { self.source = Some(src.into()); self }
+    pub fn with_tile_resolution(mut self, res: u8) -> Self { self.tile_resolution = Some(res); self }
+
+    /// Convert to a MobyPayload ready for record construction
+    pub fn to_payload(&self) -> MobyPayload {
+        MobyPayload {
+            collection_type: CollectionType::Imagery,
+            payload_type: format!("imagery/{}", self.source.as_deref().unwrap_or("unknown")),
+            data: serde_json::to_value(self).unwrap_or_default(),
+        }
+    }
+
+    /// Verify that external bytes match the stored hash
+    pub fn verify_content(&self, bytes: &[u8]) -> bool {
+        let hash = blake3::hash(bytes);
+        hash.to_hex().to_string() == self.content_hash
+    }
 }
 
 // ── Record ────────────────────────────────────────────────────────────────────
