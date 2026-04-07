@@ -20,6 +20,7 @@ COPY crates/mobydb-storage/Cargo.toml crates/mobydb-storage/Cargo.toml
 COPY crates/mobydb-merkle/Cargo.toml  crates/mobydb-merkle/Cargo.toml
 COPY crates/mobydb-query/Cargo.toml   crates/mobydb-query/Cargo.toml
 COPY crates/mobydb-server/Cargo.toml  crates/mobydb-server/Cargo.toml
+COPY tools/Cargo.toml                tools/Cargo.toml
 
 # Stub src files to cache deps without full source
 RUN mkdir -p src \
@@ -27,17 +28,20 @@ RUN mkdir -p src \
     crates/mobydb-storage/src \
     crates/mobydb-merkle/src \
     crates/mobydb-query/src \
-    crates/mobydb-server/src && \
+    crates/mobydb-server/src \
+    tools/src/bin && \
     echo "fn main() {}" > src/main.rs && \
     echo "pub fn placeholder() {}" > crates/mobydb-core/src/lib.rs && \
     echo "pub fn placeholder() {}" > crates/mobydb-storage/src/lib.rs && \
     echo "pub fn placeholder() {}" > crates/mobydb-merkle/src/lib.rs && \
     echo "pub fn placeholder() {}" > crates/mobydb-query/src/lib.rs && \
-    echo "pub fn placeholder() {}" > crates/mobydb-server/src/lib.rs
+    echo "pub fn placeholder() {}" > crates/mobydb-server/src/lib.rs && \
+    echo "fn main() {}" > tools/src/bin/generate_iot.rs && \
+    echo "fn main() {}" > tools/src/bin/run_benchmark.rs
 
 # Cache dependencies
 RUN cargo build --release 2>/dev/null || true
-RUN rm -rf src crates/*/src
+RUN rm -rf src crates/*/src tools/src
 
 # Copy real source
 COPY src/                    src/
