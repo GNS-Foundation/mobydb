@@ -88,6 +88,8 @@ pub enum CollectionType {
     Aggregate,
     /// Georeferenced imagery tile: satellite, aerial, drone capture
     Imagery,
+    /// AI inference result: model, prompt hash, response hash, latency
+    Inference,
 }
 
 // ── Spacetime Address ─────────────────────────────────────────────────────────
