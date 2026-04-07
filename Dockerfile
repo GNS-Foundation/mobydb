@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+# cache-bust: inference-v1
 
 # Copy workspace manifests first — cache deps layer
 COPY Cargo.toml Cargo.lock ./
