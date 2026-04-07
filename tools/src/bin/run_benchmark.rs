@@ -368,8 +368,7 @@ async fn run_q2_postgis(pg: &PgPool, iters: usize, scale: &str) -> QueryTiming {
             "SELECT COUNT(*) FROM sensor_readings \
              WHERE ST_DWithin(geom::geography, \
                    ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography, 5000) \
-             AND epoch BETWEEN 40 AND 60 \
-             ORDER BY recorded_at DESC"
+             AND epoch BETWEEN 40 AND 60"
         )
         .bind(PALERMO_LNG)
         .bind(PALERMO_LAT)
