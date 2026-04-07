@@ -72,3 +72,4 @@ EXPOSE 7474
 
 # Railway injects PORT env var — we use it
 CMD ["sh", "-c", "mobydbd serve --data /data/mobydb --port ${PORT:-7474}"]
+
