@@ -6,6 +6,15 @@ members = [
     "crates/mobydb-merkle",
     "crates/mobydb-query",
     "crates/mobydb-server",
+    "tools",
+]
+default-members = [
+    ".",
+    "crates/mobydb-core",
+    "crates/mobydb-storage",
+    "crates/mobydb-merkle",
+    "crates/mobydb-query",
+    "crates/mobydb-server",
 ]
 resolver = "2"
 
