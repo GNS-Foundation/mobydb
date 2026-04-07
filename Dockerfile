@@ -52,7 +52,7 @@ COPY crates/mobydb-query/src    crates/mobydb-query/src/
 COPY crates/mobydb-server/src   crates/mobydb-server/src/
 
 # Build release binary with LTO
-RUN cargo build --release --bin mobydbd
+RUN touch src/main.rs crates/*/src/*.rs && cargo build --release --bin mobydbd
 
 # ── Stage 2: Runtime ──────────────────────────────────────────────────────────
 FROM debian:bookworm-slim
